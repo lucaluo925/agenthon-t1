@@ -5,11 +5,12 @@
 # instruction.md promises it numpy/pandas/scipy/pyarrow/numba (and the wider list in
 # docker/requirements-sandbox.txt: statsmodels, scikit-learn, arch, polars, ta-lib, ...).
 # If this image's package set differs from that promise, the model writes correct code that
-# fails on an import. So the base is rebuilt in CI from the public kit rather than approximated.
+# fails on an import. Preserve the last verified image's sandbox and dependencies by digest.
 #
 # The verifier does NOT run in this image -- the harness runs the organizer's own
 # finance-bench-sandbox against /input/checks after our container exits.
-FROM finance-bench-sandbox:latest
+# Extend the last verified submission by digest so the scheduling fix keeps its exact runtime.
+FROM ghcr.io/lucaluo925/agenthon-t1@sha256:74ab3e06a0501496953e8d81e09bd6caea6f2a0ec7187bc2af7bf7de8b0d9efa
 
 # The only addition the base does not provide: an OpenAI-compatible client for the House route
 # ($MODEL_ENDPOINT/v1 through the audited proxy). Vendor SDKs are useless here -- their

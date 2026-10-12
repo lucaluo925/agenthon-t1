@@ -281,7 +281,7 @@ def build_assert_prompt(instruction: str, files: str, out_dir: str) -> str:
     )
 
 
-def gen_parallel(model: "Model", system: str, prompts: list[str]) -> list[str | None]:
+def gen_parallel(model: "Model", system: str | list[str], prompts: list[str]) -> list[str | None]:
     """Issue several generation requests at once. The route permits this and counts exactly."""
     out: list[str | None] = [None] * len(prompts)
     if not prompts:
@@ -289,7 +289,8 @@ def gen_parallel(model: "Model", system: str, prompts: list[str]) -> list[str | 
 
     def one(i: int) -> None:
         try:
-            out[i] = model.chat([{"role": "system", "content": system},
+            request_system = system[i] if isinstance(system, list) else system
+            out[i] = model.chat([{"role": "system", "content": request_system},
                                  {"role": "user", "content": prompts[i]}])
         except Exception as exc:                                  # never propagate
             log(f"candidate {i} raised: {exc!r}")
@@ -414,9 +415,10 @@ def solve_r2(task_dir: pathlib.Path, out: pathlib.Path, work: pathlib.Path,
     prompts = [base + (f"\n## Approach\n{v}\n" if v else "") for v in VARIANTS[:n]]
 
     log(f"R2: {n} candidates + 1 checker, in parallel ({left():.0f}s left)")
-    replies = gen_parallel(model, SYSTEM, prompts)
-    checker_reply = gen_parallel(model, ASSERT_SYSTEM,
-                                 [build_assert_prompt(instruction, files, str(out))])[0]
+    # The checker only reads the instruction, so its generation need not wait for candidates.
+    generated = gen_parallel(model, [SYSTEM] * len(prompts) + [ASSERT_SYSTEM],
+                             prompts + [build_assert_prompt(instruction, files, str(out))])
+    replies, checker_reply = generated[:-1], generated[-1]
     checker = extract_code(checker_reply) if checker_reply else None
     log(f"R2: {sum(r is not None for r in replies)}/{n} candidates returned, "
         f"checker {'ok' if checker else 'missing'}, {model.calls} requests used")

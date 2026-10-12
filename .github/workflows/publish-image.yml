@@ -8,17 +8,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
-
-      - name: Clone the public Track 1 kit (for the sandbox base)
-        run: git clone --depth 1 https://github.com/Agenthon-2026/track1-coding-public.git kit
-
-      - name: Build the shared sandbox base
-        run: docker build -t finance-bench-sandbox:latest -f kit/docker/sandbox.Dockerfile kit
 
       - uses: docker/login-action@v3
         with:
@@ -32,6 +27,7 @@ jobs:
           IMAGE=ghcr.io/${{ github.repository_owner }}/agenthon-t1
           TAG=$IMAGE:${{ github.sha }}
           docker build --platform linux/amd64 -t "$TAG" .
+          python ci/verify-image.py "$TAG"
           docker push "$TAG"
           DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$TAG" | cut -d@ -f2)
           echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
