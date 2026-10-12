@@ -17,10 +17,14 @@ assert c["Entrypoint"] == ["python", "/agent/agent.py"]
 assert c["Cmd"] == ["solve", "--task-dir", "/input", "--out", "/app/output"]
 
 # These are launcher restrictions, not a measurement of the House service or 128-GiB workloads.
+available_cpus = int(subprocess.check_output(["docker", "info", "--format", "{{.NCPU}}"], text=True))
+assert available_cpus >= 1
+# Docker rejects quotas above its host's CPU count. A smaller quota is stricter than 16.
+cpu_quota = min(16, available_cpus)
 restrictions = ["--network=none", "--read-only", "--user", "65534:65534", "--cap-drop=ALL",
                 "--security-opt", "no-new-privileges", "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=64m",
                 "--pids-limit", "256", "--ulimit", "nofile=1024:1024", "--ulimit", "nproc=256:256",
-                "--ulimit", "fsize=67108864:67108864", "--cpus", "16", "--memory", "128g",
+                "--ulimit", "fsize=67108864:67108864", "--cpus", str(cpu_quota), "--memory", "128g",
                 "--memory-swap", "128g", "-e", "HOME=/nonexistent"]
 probe = (
     "import hashlib,httpx,openai,numpy,pandas,scipy,pyarrow;from openai import OpenAI;"
@@ -77,6 +81,7 @@ with tempfile.TemporaryDirectory(prefix="t1-image-check-") as temporary:
 
 receipt = {"image": image, "source_sha256": expected, "config_gate": "PASS", "runtime_gate": "PASS",
            "launcher_uid": 65534, "independent_output_reader_uid": 1000, "cases": cases,
+           "ci_cpu_quota": cpu_quota, "published_cpu_quota": 16,
            "network": "none", "real_house_calls": 0,
            "limitations": "Local fixture and client construction; not House quality or competition score."}
 Path("ci-image-acceptance.json").write_text(json.dumps(receipt, indent=2))
